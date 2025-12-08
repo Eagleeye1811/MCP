@@ -34,7 +34,7 @@ server.tool(
   },
   async (params) => {
     try {
-   
+      
       return{
         content:[
             {type:"text" , text : `your language is ${params.language}`}
