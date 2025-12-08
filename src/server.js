@@ -1,6 +1,25 @@
+import dotenv from "dotenv";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { generateCode, detectBugs, checkBestPractices, createGitHubCommit } from "./tools/index.js";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Suppress console output to avoid interfering with stdio transport
+const originalLog = console.log;
+const originalWarn = console.warn;
+const originalError = console.error;
+
+// Redirect stdout logs to stderr to keep stdio clean for MCP protocol
+console.log = (...args) => originalError("[LOG]", ...args);
+console.warn = (...args) => originalError("[WARN]", ...args);
+console.error = (...args) => originalError("[ERROR]", ...args);
+
+dotenv.config({ path: join(__dirname, "../.env") });
 
 // Create server instance
 const server = new McpServer({
@@ -34,20 +53,20 @@ server.tool(
   },
   async (params) => {
     try {
-      
+      const data = await generateCode(params)
       return{
         content:[
-            {type:"text" , text : `your language is ${params.language}`}
+            {type:"text" , text : JSON.stringify(data, null, 2) }
         ]
       }
-    } catch {
+    } catch (error) {
+      console.error("Generate code error:", error);
       return {
         content: [
-          { type: "text", text: "Failed to generate code" }
+          { type: "text", text: `Failed to generate code: ${error.message}` }
         ]
       };
     }
-    return {};
   }
 );
 
@@ -149,9 +168,13 @@ server.tool(
 );
 
 
+
+
 async function main() {
     const transport = new StdioServerTransport()
     await server.connect(transport);
     
 }
 main()
+
+
