@@ -1,20 +1,21 @@
+import "dotenv/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { checkBestPractices } from "./tools/check-best-practices.js";
 
 // Create server instance
 const server = new McpServer({
   name: "code",
   version: "1.0.0",
-  capabilities:{
-    resources:{},
-    tools:{},
-    prompts :{}
-  }
+  capabilities: {
+    resources: {},
+    tools: {},
+    prompts: {},
+  },
 });
 
 //tools
-
 
 // MCP Tool 1: Code Generation
 server.tool(
@@ -30,21 +31,18 @@ server.tool(
     readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
-    openWorldHint: true
+    openWorldHint: true,
   },
   async (params) => {
     try {
-      
-      return{
-        content:[
-            {type:"text" , text : `your language is ${params.language}`}
-        ]
-      }
-    } catch {
       return {
         content: [
-          { type: "text", text: "Failed to generate code" }
-        ]
+          { type: "text", text: `your language is ${params.language}` },
+        ],
+      };
+    } catch {
+      return {
+        content: [{ type: "text", text: "Failed to generate code" }],
       };
     }
     return {};
@@ -64,17 +62,14 @@ server.tool(
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
-    openWorldHint: false
+    openWorldHint: false,
   },
   async (params) => {
     try {
-
       await detectBugs(params);
     } catch {
       return {
-        content: [
-          { type: "text", text: "Failed to detect bugs" }
-        ]
+        content: [{ type: "text", text: "Failed to detect bugs" }],
       };
     }
     return {};
@@ -88,27 +83,28 @@ server.tool(
     code: z.string(),
     language: z.string(),
     framework: z.string().optional(),
-    strictMode: z.boolean().optional()
+    strictMode: z.boolean().optional(),
   },
   {
     title: "Best Practices Checker",
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
-    openWorldHint: false
+    openWorldHint: false,
   },
   async (params) => {
     try {
-
-      await checkBestPractices(params);
-    } catch {
+      return await checkBestPractices(params);
+    } catch (error) {
       return {
         content: [
-          { type: "text", text: "Failed to check best practices" }
-        ]
+          {
+            type: "text",
+            text: `Failed to check best practices: ${error.message}`,
+          },
+        ],
       };
     }
-    return {};
   }
 );
 
@@ -120,38 +116,35 @@ server.tool(
     repo: z.string(),
     branch: z.string(),
     message: z.string(),
-    files: z.array(z.object({
-      path: z.string(),
-      content: z.string()
-    })),
-    token: z.string().optional()
+    files: z.array(
+      z.object({
+        path: z.string(),
+        content: z.string(),
+      })
+    ),
+    token: z.string().optional(),
   },
   {
     title: "GitHub Commit",
     readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
-    openWorldHint: true
+    openWorldHint: true,
   },
   async (params) => {
     try {
-    
       await createGitHubCommit(params);
     } catch {
       return {
-        content: [
-          { type: "text", text: "Failed to create GitHub commit" }
-        ]
+        content: [{ type: "text", text: "Failed to create GitHub commit" }],
       };
     }
     return {};
   }
 );
 
-
 async function main() {
-    const transport = new StdioServerTransport()
-    await server.connect(transport);
-    
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
 }
-main()
+main();
