@@ -87,16 +87,20 @@ server.tool(
   },
   async (params) => {
     try {
-
-      await detectBugs(params);
-    } catch {
+      const data = await detectBugs(params);  // ← Get the data
       return {
         content: [
-          { type: "text", text: "Failed to detect bugs" }
+          { type: "text", text: JSON.stringify(data, null, 2) }  // ← Return it
+        ]
+      };
+    } catch (error) {
+      console.error("Detect bugs error:", error);
+      return {
+        content: [
+          { type: "text", text: `Failed to detect bugs: ${error.message}` }
         ]
       };
     }
-    return {};
   }
 );
 
