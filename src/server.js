@@ -2,9 +2,8 @@ import "dotenv/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { checkBestPractices } from "./tools/check-best-practices.js";
 import dotenv from "dotenv";
-import { generateCode, detectBugs, checkBestPractices, createGitHubCommit } from "./tools/index.js";
+import { generateCode, detectBugs, checkBestPractices, autoCommitAndPush } from "./tools/index.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -143,31 +142,28 @@ server.tool(
 server.tool(
   "github-commit",
   "Create and push a commit to GitHub repository",
-  {
+  { 
+    localPath: z.string(),
     repo: z.string(),
     branch: z.string(),
     message: z.string(),
-    files: z.array(
-      z.object({
-        path: z.string(),
-        content: z.string(),
-      })
-    ),
-    token: z.string().optional(),
   },
   {
     title: "GitHub Commit",
     readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
-    openWorldHint: true,
+    openWorldHint: true
   },
   async (params) => {
     try {
-      await createGitHubCommit(params);
+    
+      await autoCommitAndPush(params);
     } catch {
       return {
-        content: [{ type: "text", text: "Failed to create GitHub commit" }],
+        content: [
+          { type: "text", text: "Failed to create GitHub commit" }
+        ]
       };
     }
     return {};
