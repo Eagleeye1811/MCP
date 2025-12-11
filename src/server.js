@@ -3,6 +3,25 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { checkBestPractices } from "./tools/check-best-practices.js";
+import dotenv from "dotenv";
+import { generateCode, detectBugs, checkBestPractices, createGitHubCommit } from "./tools/index.js";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Suppress console output to avoid interfering with stdio transport
+const originalLog = console.log;
+const originalWarn = console.warn;
+const originalError = console.error;
+
+// Redirect stdout logs to stderr to keep stdio clean for MCP protocol
+console.log = (...args) => originalError("[LOG]", ...args);
+console.warn = (...args) => originalError("[WARN]", ...args);
+console.error = (...args) => originalError("[ERROR]", ...args);
+
+dotenv.config({ path: join(__dirname, "../.env") });
 
 // Create server instance
 const server = new McpServer({
@@ -35,27 +54,32 @@ server.tool(
   },
   async (params) => {
     try {
+      const data = await generateCode(params)
+      return{
+        content:[
+            {type:"text" , text : JSON.stringify(data, null, 2) }
+        ]
+      }
+    } catch (error) {
+      console.error("Generate code error:", error);
       return {
         content: [
-          { type: "text", text: `your language is ${params.language}` },
-        ],
-      };
-    } catch {
-      return {
-        content: [{ type: "text", text: "Failed to generate code" }],
+          { type: "text", text: `Failed to generate code: ${error.message}` }
+        ]
       };
     }
-    return {};
   }
 );
 
 // MCP Tool 2: Bug Detector
 server.tool(
   "detect-bugs",
-  "Analyze code for potential bugs and issues",
+  "Analyze code for potential bugs and issues. Can analyze code directly or read from a file.",
   {
-    code: z.string(),
+    code: z.string().optional(),
     language: z.string(),
+    rootDirectory: z.string(),
+    fileName: z.string()
   },
   {
     title: "Bug Detector",
@@ -66,13 +90,20 @@ server.tool(
   },
   async (params) => {
     try {
-      await detectBugs(params);
-    } catch {
+      const data = await detectBugs(params);
       return {
-        content: [{ type: "text", text: "Failed to detect bugs" }],
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) }
+        ]
+      };
+    } catch (error) {
+      console.error("Detect bugs error:", error);
+      return {
+        content: [
+          { type: "text", text: `Failed to detect bugs: ${error.message}` }
+        ]
       };
     }
-    return {};
   }
 );
 
@@ -143,8 +174,13 @@ server.tool(
   }
 );
 
+
+
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
-main();
+main()
+
+
