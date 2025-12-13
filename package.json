@@ -1,21 +1,38 @@
 {
-  "name": "test",
+  "name": "mcp-chatbot",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/server.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "inspect": "set DANGEROUSLY_OMIT_AUTH=true && npx @modelcontextprotocol/inspector node src/server.js"
+    "test:github": "node src/tools/test-github-commit.js",
+    "start": "node src/server.js",
+    "chatbot": "node src/chatbot/cli.js",
+    "web": "npx serve src/chatbot/web -p 3000",
+    "web:server": "node src/chatbot/web/backend-server.js",
+    "web:full": "npm-run-all --parallel web web:server",
+    "inspect": "set DANGEROUSLY_OMIT_AUTH=true && npx @modelcontextprotocol/inspector node src/server.js",
+    "verify": "node src/chatbot/verify-setup.js"
   },
-  "keywords": [],
+  "keywords": [
+    "mcp",
+    "chatbot",
+    "ai",
+    "code-assistant"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "MCP Chatbot - AI-powered code assistant with tools for code generation, bug detection, best practices checking, and GitHub commits",
   "dependencies": {
     "@google/genai": "^1.31.0",
     "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "^1.24.3",
+    "@octokit/rest": "^20.1.2",
+    "chalk": "^5.6.2",
     "dotenv": "^17.2.3",
+    "express": "^4.22.1",
+    "mime-types": "^2.1.35",
+    "ws": "^8.18.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {

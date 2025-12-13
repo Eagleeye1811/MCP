@@ -101,8 +101,31 @@ Format your response as JSON with the following structure:
       throw new Error("No valid JSON found in response");
     }
     
-    const jsonString = jsonMatch[0];
-    const projectData = JSON.parse(jsonString);
+    let jsonString = jsonMatch[0];
+    
+    // Try to parse, if it fails due to escape characters, try to fix them
+    let projectData;
+    try {
+      projectData = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.error("Initial JSON parse failed, attempting to fix escape characters...");
+      
+      // Common fixes for malformed JSON from AI
+      // Fix unescaped newlines in strings
+      jsonString = jsonString.replace(/([^\\])(\\n)/g, '$1\\\\n');
+      // Fix unescaped quotes (but not already escaped ones)
+      jsonString = jsonString.replace(/([^\\])"/g, '$1\\"');
+      // Fix double backslashes
+      jsonString = jsonString.replace(/\\\\\\/g, '\\\\');
+      
+      try {
+        projectData = JSON.parse(jsonString);
+        console.error("Successfully parsed after fixing escape characters");
+      } catch (retryError) {
+        // If still failing, return a simplified error response
+        throw new Error(`Failed to parse AI response. The AI generated malformed JSON. Please try again with a simpler project description.`);
+      }
+    }
     
     // Return data that can be used by writeFilesToDisk function
     return {

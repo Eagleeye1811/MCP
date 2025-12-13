@@ -2,39 +2,58 @@ import { Octokit } from "@octokit/rest";
 import fs from "fs";
 import path from "path";
 
-
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN
 });
-// Suppress console output to avoid interfering with stdio transport
-const originalLog = console.log;
-const originalWarn = console.warn;
-const originalError = console.error;
-
 
 // Redirect stdout logs to stderr to keep stdio clean for MCP protocol
+const originalError = console.error;
 console.log = (...args) => originalError("[LOG]", ...args);
 console.warn = (...args) => originalError("[WARN]", ...args);
 console.error = (...args) => originalError("[ERROR]", ...args);
+
 // Auto-commit and push entire codebase
 export default async function autoCommitAndPush(params) {
-  const { localPath, repo: repoName, branch: branchName, message: mess = null } = params;
+  const { localPath, repo: repoName, branch: branchName, message: mess = null, owner: ownerParam } = params;
  
   console.log('Repository:', repoName);
   console.log('Local path:', localPath);
 
-
-  //yourusername
-  const owner = 'Afnankazi';
+  // Get owner from params, environment variable, or use default
+  const owner = ownerParam || process.env.GITHUB_OWNER || 'Eagleeye1811';
   const repo = repoName;
   const branch = branchName;
- 
+  
+  console.log('Owner:', owner);
+
   try {
     // Validate that the path exists
     if (!fs.existsSync(localPath)) {
       throw new Error(`Path does not exist: ${localPath}`);
     }
 
+    // First, verify the repository exists and we have access
+    console.log(' Checking if repository exists...');
+    try {
+      const { data: repoData } = await octokit.rest.repos.get({
+        owner,
+        repo
+      });
+      console.log(' Repository exists!');
+      
+      // Check if we have push permission
+      if (!repoData.permissions?.push) {
+        throw new Error(`No write access to repository: ${owner}/${repo}\n\n💡 Solutions:\n1. Check your GitHub token has 'repo' scope\n2. Verify you own this repository or have write access\n3. Create a new token: https://github.com/settings/tokens`);
+      }
+      console.log(' Write access verified!');
+    } catch (error) {
+      if (error.status === 404) {
+        throw new Error(`Repository not found: ${owner}/${repo}\n\n💡 Create it first at: https://github.com/new\nOr check the repository name and owner are correct.`);
+      } else if (error.status === 401) {
+        throw new Error(`GitHub authentication failed. Check your GITHUB_TOKEN in .env file.`);
+      }
+      throw error;
+    }
 
     // Generate automatic commit message if not provided
     const message = mess || `Auto-commit: ${new Date().toISOString()}`;
@@ -43,30 +62,40 @@ export default async function autoCommitAndPush(params) {
     const files = getAllFiles(localPath);
     console.log(`Found ${files.length} files`);
 
-
     if (files.length === 0) {
       throw new Error('No files found to commit');
     }
 
-
-    // 1. Get current branch reference
+    // 1. Get current branch reference (or handle empty repo)
     console.log(' Getting current branch state...');
-    const { data: refData } = await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${branch}`
-    });
-    const currentCommitSha = refData.object.sha;
+    let currentCommitSha = null;
+    let baseTreeSha = null;
+    let isEmptyRepo = false;
+    
+    try {
+      const { data: refData } = await octokit.rest.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${branch}`
+      });
+      currentCommitSha = refData.object.sha;
 
-
-    // 2. Get current commit
-    const { data: commitData } = await octokit.rest.git.getCommit({
-      owner,
-      repo,
-      commit_sha: currentCommitSha
-    });
-    const baseTreeSha = commitData.tree.sha;
-
+      // 2. Get current commit
+      const { data: commitData } = await octokit.rest.git.getCommit({
+        owner,
+        repo,
+        commit_sha: currentCommitSha
+      });
+      baseTreeSha = commitData.tree.sha;
+    } catch (error) {
+      // Repository is empty (no commits yet)
+      if (error.status === 404 || error.message.includes('empty')) {
+        console.log(' Repository is empty. Creating initial commit...');
+        isEmptyRepo = true;
+      } else {
+        throw error;
+      }
+    }
 
     // 3. Create blobs for all files (with progress)
     console.log(' Uploading files...');
@@ -95,37 +124,58 @@ export default async function autoCommitAndPush(params) {
       }
     }
 
-
     // 4. Create new tree
     console.log(' Creating tree...');
-    const { data: newTree } = await octokit.rest.git.createTree({
+    const treeParams = {
       owner,
       repo,
       tree: blobs,
-      base_tree: baseTreeSha
-    });
-
+    };
+    
+    // Only include base_tree if repo is not empty
+    if (baseTreeSha) {
+      treeParams.base_tree = baseTreeSha;
+    }
+    
+    const { data: newTree } = await octokit.rest.git.createTree(treeParams);
 
     // 5. Create commit
     console.log(' Creating commit...');
-    const { data: newCommit } = await octokit.rest.git.createCommit({
+    const commitParams = {
       owner,
       repo,
       message: message,
       tree: newTree.sha,
-      parents: [currentCommitSha]
-    });
+    };
+    
+    // Only include parent if repo is not empty
+    if (currentCommitSha) {
+      commitParams.parents = [currentCommitSha];
+    }
+    
+    const { data: newCommit } = await octokit.rest.git.createCommit(commitParams);
 
-
-    // 6. Update branch reference
+    // 6. Update or create branch reference
     console.log('Pushing to GitHub...');
-    await octokit.rest.git.updateRef({
-      owner,
-      repo,
-      ref: `heads/${branch}`,
-      sha: newCommit.sha
-    });
-
+    
+    if (isEmptyRepo) {
+      // Create new branch reference for empty repo
+      await octokit.rest.git.createRef({
+        owner,
+        repo,
+        ref: `refs/heads/${branch}`,
+        sha: newCommit.sha
+      });
+      console.log(` Created new branch: ${branch}`);
+    } else {
+      // Update existing branch reference
+      await octokit.rest.git.updateRef({
+        owner,
+        repo,
+        ref: `heads/${branch}`,
+        sha: newCommit.sha
+      });
+    }
 
     console.log('✅ Successfully committed and pushed!');
     console.log(`Commit: ${message}`);
@@ -151,12 +201,10 @@ export default async function autoCommitAndPush(params) {
   }
 }
 
-
 // Helper: Get all files recursively
 function getAllFiles(dirPath, arrayOfFiles = [], basePath = dirPath) {
   try {
     const files = fs.readdirSync(dirPath);
-
 
     // Files/folders to ignore
     const ignoreList = [
@@ -172,10 +220,8 @@ function getAllFiles(dirPath, arrayOfFiles = [], basePath = dirPath) {
       'pnpm-lock.yaml'
     ];
 
-
     files.forEach((file) => {
       if (ignoreList.includes(file)) return;
-
 
       const filePath = path.join(dirPath, file);
      
@@ -189,13 +235,10 @@ function getAllFiles(dirPath, arrayOfFiles = [], basePath = dirPath) {
       }
     });
 
-
     return arrayOfFiles;
   } catch (error) {
     console.error(`Error reading directory ${dirPath}:`, error.message);
     throw error;
   }
 }
-
-
 

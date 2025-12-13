@@ -4,4 +4,4 @@ export { detectBugs } from "./detect-bugs.js";
 
 export { checkBestPractices } from "./check-best-practices.js";
 
-export { createGitHubCommit } from "./create-github-commit.js";
+export { default as autoCommitAndPush } from "./github-commit.js";

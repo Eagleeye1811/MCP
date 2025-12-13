@@ -21,7 +21,25 @@ export async function detectBugs(params) {
       codeToAnalyze = await readFile(filePath, 'utf-8');
       console.error(`Successfully read file: ${filePath}`);
     } catch (error) {
-      throw new Error(`Failed to read file ${filePath}: ${error.message}`);
+      // If file not found, try in src/ subdirectory
+      if (error.code === 'ENOENT' && !params.fileName.includes('src/')) {
+        try {
+          filePath = join(params.rootDirectory, 'src', params.fileName);
+          codeToAnalyze = await readFile(filePath, 'utf-8');
+          console.error(`Successfully read file: ${filePath}`);
+        } catch (error2) {
+          throw new Error(`File not found. Tried:\n1. ${join(params.rootDirectory, params.fileName)}\n2. ${filePath}\n\nError: ${error2.message}`);
+        }
+      } else {
+        // Better error messages for common issues
+        if (error.code === 'EPERM') {
+          throw new Error(`Permission denied to read file: ${filePath}\n\n💡 Solution: Paste your code directly instead!\n\nExample:\n"Detect bugs in this code language: javascript\n\nconst x = 5;\nfunction test() {\n  return x.tostring(); // bug here\n}"\n\nOr fix permissions:\n• System Settings → Privacy & Security → Full Disk Access → Add Terminal`);
+        } else if (error.code === 'EACCES') {
+          throw new Error(`Access denied to file: ${filePath}\n\nTry pasting code directly or check permissions: chmod +r ${filePath}`);
+        } else {
+          throw new Error(`Failed to read file ${filePath}: ${error.message}`);
+        }
+      }
     }
   }
   
