@@ -2,7 +2,12 @@ import "dotenv/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { generateCode, detectBugs, checkBestPractices, autoCommitAndPush } from "./tools/index.js";
+import {
+  generateCode,
+  detectBugs,
+  checkBestPractices,
+  autoCommitAndPush,
+} from "./tools/index.js";
 
 // Redirect stdout logs to stderr to keep stdio clean for MCP protocol
 const originalError = console.error;
@@ -41,16 +46,14 @@ server.tool(
     try {
       const data = await generateCode(params);
       return {
-        content: [
-          { type: "text", text: JSON.stringify(data, null, 2) }
-        ]
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
     } catch (error) {
       console.error("Generate code error:", error);
       return {
         content: [
-          { type: "text", text: `Failed to generate code: ${error.message}` }
-        ]
+          { type: "text", text: `Failed to generate code: ${error.message}` },
+        ],
       };
     }
   }
@@ -64,7 +67,7 @@ server.tool(
     code: z.union([z.string(), z.undefined()]).optional(),
     language: z.string(),
     rootDirectory: z.string(),
-    fileName: z.string()
+    fileName: z.string(),
   },
   {
     title: "Bug Detector",
@@ -77,16 +80,14 @@ server.tool(
     try {
       const data = await detectBugs(params);
       return {
-        content: [
-          { type: "text", text: JSON.stringify(data, null, 2) }
-        ]
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
       };
     } catch (error) {
       console.error("Detect bugs error:", error);
       return {
         content: [
-          { type: "text", text: `Failed to detect bugs: ${error.message}` }
-        ]
+          { type: "text", text: `Failed to detect bugs: ${error.message}` },
+        ],
       };
     }
   }
@@ -128,7 +129,7 @@ server.tool(
 server.tool(
   "github-commit",
   "Create and push a commit to GitHub repository",
-  { 
+  {
     localPath: z.string(),
     repo: z.string(),
     branch: z.string(),
@@ -140,22 +141,28 @@ server.tool(
     readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
-    openWorldHint: true
+    openWorldHint: true,
   },
   async (params) => {
     try {
       await autoCommitAndPush(params);
       return {
         content: [
-          { type: "text", text: "✅ Successfully committed and pushed to GitHub!" }
-        ]
+          {
+            type: "text",
+            text: "✅ Successfully committed and pushed to GitHub!",
+          },
+        ],
       };
     } catch (error) {
       console.error("GitHub commit error:", error);
       return {
         content: [
-          { type: "text", text: `Failed to create GitHub commit: ${error.message}` }
-        ]
+          {
+            type: "text",
+            text: `Failed to create GitHub commit: ${error.message}`,
+          },
+        ],
       };
     }
   }
