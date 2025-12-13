@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Chatbot - AI Code Assistant</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🤖 MCP Chatbot</h1>
+                <p>AI-Powered Code Assistant</p>
+            </div>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot disconnected"></span>
+                <span class="status-text">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="tools-section">
+                    <h3>🛠️ Available Tools</h3>
+                    <div id="toolsList" class="tools-list">
+                        <div class="tool-card">
+                            <div class="tool-icon">💻</div>
+                            <div class="tool-info">
+                                <h4>Code Generator</h4>
+                                <p>Generate complete projects</p>
+                            </div>
+                        </div>
+                        <div class="tool-card">
+                            <div class="tool-icon">🐛</div>
+                            <div class="tool-info">
+                                <h4>Bug Detector</h4>
+                                <p>Find bugs and issues</p>
+                            </div>
+                        </div>
+                        <div class="tool-card">
+                            <div class="tool-icon">✅</div>
+                            <div class="tool-info">
+                                <h4>Best Practices</h4>
+                                <p>Check code quality</p>
+                            </div>
+                        </div>
+                        <div class="tool-card">
+                            <div class="tool-icon">🚀</div>
+                            <div class="tool-info">
+                                <h4>GitHub Commit</h4>
+                                <p>Push to repository</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="examples-section">
+                    <h3>💡 Quick Examples</h3>
+                    <div class="examples-list">
+                        <button class="example-btn" onclick="fillExample('Generate a todo app in React')">
+                            📝 Generate Todo App
+                        </button>
+                        <button class="example-btn" onclick="fillExample('Detect bugs in file: server.js language: javascript')">
+                            🐛 Detect Bugs
+                        </button>
+                        <button class="example-btn" onclick="fillExample('Check best practices for JavaScript code')">
+                            ✅ Check Best Practices
+                        </button>
+                        <button class="example-btn" onclick="fillExample('Commit to github repo: my-repo branch: main')">
+                            🚀 GitHub Commit
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Chat Area -->
+            <main class="chat-area">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message bot-message">
+                        <div class="message-avatar">🤖</div>
+                        <div class="message-content">
+                            <div class="message-header">MCP Chatbot</div>
+                            <div class="message-text">
+                                <p>Hello! I'm your AI Code Assistant. I can help you with:</p>
+                                <ul>
+                                    <li>🔨 Generating code projects</li>
+                                    <li>🔍 Detecting bugs in your code</li>
+                                    <li>📋 Checking best practices</li>
+                                    <li>📤 Committing to GitHub</li>
+                                </ul>
+                                <p>Try asking me something like "Generate a todo app in React" or click the examples in the sidebar!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="chat-input">
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="Type your command here... (e.g., 'Generate a REST API in Python')"
+                            rows="1"
+                        ></textarea>
+                        <button id="sendButton" class="send-button" onclick="sendMessage()">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="input-hints">
+                        Press Enter to send • Shift+Enter for new line • Type "help" for examples
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p>Processing your request...</p>
+    </div>
+
+    <script src="project-handler.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
+

@@ -2,25 +2,13 @@ import "dotenv/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import dotenv from "dotenv";
 import { generateCode, detectBugs, checkBestPractices, autoCommitAndPush } from "./tools/index.js";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Suppress console output to avoid interfering with stdio transport
-const originalLog = console.log;
-const originalWarn = console.warn;
-const originalError = console.error;
 
 // Redirect stdout logs to stderr to keep stdio clean for MCP protocol
+const originalError = console.error;
 console.log = (...args) => originalError("[LOG]", ...args);
 console.warn = (...args) => originalError("[WARN]", ...args);
 console.error = (...args) => originalError("[ERROR]", ...args);
-
-dotenv.config({ path: join(__dirname, "../.env") });
 
 // Create server instance
 const server = new McpServer({
@@ -33,8 +21,6 @@ const server = new McpServer({
   },
 });
 
-//tools
-
 // MCP Tool 1: Code Generation
 server.tool(
   "generate-code",
@@ -42,7 +28,7 @@ server.tool(
   {
     description: z.string(),
     language: z.string().default("javascript"),
-    framework: z.string().optional(),
+    framework: z.union([z.string(), z.undefined()]).optional(),
   },
   {
     title: "Code Generator",
@@ -53,12 +39,12 @@ server.tool(
   },
   async (params) => {
     try {
-      const data = await generateCode(params)
-      return{
-        content:[
-            {type:"text" , text : JSON.stringify(data, null, 2) }
+      const data = await generateCode(params);
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) }
         ]
-      }
+      };
     } catch (error) {
       console.error("Generate code error:", error);
       return {
@@ -75,7 +61,7 @@ server.tool(
   "detect-bugs",
   "Analyze code for potential bugs and issues. Can analyze code directly or read from a file.",
   {
-    code: z.string().optional(),
+    code: z.union([z.string(), z.undefined()]).optional(),
     language: z.string(),
     rootDirectory: z.string(),
     fileName: z.string()
@@ -112,8 +98,8 @@ server.tool(
   {
     code: z.string(),
     language: z.string(),
-    framework: z.string().optional(),
-    strictMode: z.boolean().optional(),
+    framework: z.union([z.string(), z.undefined()]).optional(),
+    strictMode: z.union([z.boolean(), z.undefined()]).optional(),
   },
   {
     title: "Best Practices Checker",
@@ -147,6 +133,7 @@ server.tool(
     repo: z.string(),
     branch: z.string(),
     message: z.string(),
+    owner: z.union([z.string(), z.undefined()]).optional(),
   },
   {
     title: "GitHub Commit",
@@ -157,26 +144,26 @@ server.tool(
   },
   async (params) => {
     try {
-    
       await autoCommitAndPush(params);
-    } catch {
       return {
         content: [
-          { type: "text", text: "Failed to create GitHub commit" }
+          { type: "text", text: "✅ Successfully committed and pushed to GitHub!" }
+        ]
+      };
+    } catch (error) {
+      console.error("GitHub commit error:", error);
+      return {
+        content: [
+          { type: "text", text: `Failed to create GitHub commit: ${error.message}` }
         ]
       };
     }
-    return {};
   }
 );
-
-
-
 
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
-main()
 
-
+main();
