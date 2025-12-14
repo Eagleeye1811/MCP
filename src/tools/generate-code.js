@@ -9,7 +9,6 @@ export async function generateCode(params) {
 
   const ai = new GoogleGenAI({ apiKey });
 
-  // Build the prompt for Gemini
   const prompt = `Generate a complete, production-ready project based on the following requirements:
 
 Description: ${params.description}
@@ -17,134 +16,104 @@ Language: ${params.language}
 ${params.framework ? `Framework: ${params.framework}` : ""}
 ${params.includeTests ? "Include unit tests" : "No tests needed"}
 
-Please provide:
-1. Complete file structure (directory tree)
-2. All necessary files with complete code
-3. Package configuration files (package.json, requirements.txt, etc.)
-4. README.md with:
-   - Project description
-   - Installation instructions
-   - Setup commands
-   - How to run the project
-   - How to run tests (if applicable)
-   - Environment variables needed
-5. Any additional configuration files needed
+IMPORTANT: You must respond with ONLY valid JSON. No markdown, no code blocks, no explanations.
 
-Format your response as JSON with the following structure:
+Format your response as a single JSON object with this EXACT structure:
 {
   "projectName": "project-name",
-  "fileStructure": {
-    "type": "directory",
-    "name": "root",
-    "children": [...]
-  },
   "files": [
     {
-      "path": "relative/path/to/file",
-      "content": "file content here",
-      "description": "brief description of this file"
+      "path": "filename.ext",
+      "content": "file content with \\n for newlines"
     }
   ],
-  "setupInstructions": {
-    "prerequisites": ["prerequisite 1", "prerequisite 2"],
-    "installCommands": ["command 1", "command 2"],
-    "runCommands": ["command to run the project"],
-    "testCommands": ["command to run tests"],
-    "environmentVariables": [
-      {
-        "name": "VAR_NAME",
-        "description": "what this variable is for",
-        "example": "example value"
-      }
-    ]
+  "setup": {
+    "install": ["npm install"],
+    "run": ["npm start"],
+    "test": ["npm test"]
   },
-  "additionalNotes": "any additional information or tips"
-}`;
+  "notes": "Brief setup notes"
+}
+
+RULES:
+- Escape all quotes and newlines in file content
+- Keep file content simple and functional
+- Include README.md as first file
+- Include package.json or requirements.txt
+- Maximum 5-10 files total`;
 
   try {
-    // Call Gemini API using SDK
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         systemInstruction:
-          "You are an expert software developer who creates complete, production-ready projects with clear documentation and setup instructions.",
-        temperature: 0.5,
-        topK: 40,
-        topP: 0.95,
+          "You are an expert software developer. You MUST respond with ONLY valid JSON, no markdown, no code blocks, no extra text. Generate simple, working code with clear setup.",
+        temperature: 0.3,
+        topK: 20,
+        topP: 0.9,
+        responseMimeType: "application/json",
       },
     });
 
-    const generatedText = response.text;
+    let generatedText = response.text.trim();
 
-    // Try to parse the JSON from the response
-    // Gemini might wrap it in markdown code blocks, so clean it first
-    let cleanedText = generatedText.trim();
-
-    // Remove markdown code blocks if present
-    if (cleanedText.startsWith("```json")) {
-      cleanedText = cleanedText.slice(7); // Remove ```json
-    } else if (cleanedText.startsWith("```")) {
-      cleanedText = cleanedText.slice(3); // Remove ```
+    if (generatedText.startsWith("```json")) {
+      generatedText = generatedText.slice(7);
+    } else if (generatedText.startsWith("```")) {
+      generatedText = generatedText.slice(3);
     }
-
-    // Remove trailing code block markers
-    if (cleanedText.endsWith("```")) {
-      cleanedText = cleanedText.slice(0, -3);
+    if (generatedText.endsWith("```")) {
+      generatedText = generatedText.slice(0, -3);
     }
+    generatedText = generatedText.trim();
 
-    cleanedText = cleanedText.trim();
-
-    // Try to find JSON object if text contains other content
-    const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+    const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error("No valid JSON found in response");
+      throw new Error("No JSON found in AI response. Please try again.");
     }
 
-    let jsonString = jsonMatch[0];
-
-    // Try to parse, if it fails, try alternative approaches
     let projectData;
     try {
-      projectData = JSON.parse(jsonString);
+      projectData = JSON.parse(jsonMatch[0]);
     } catch (parseError) {
-      console.error(
-        "Initial JSON parse failed, attempting alternative parsing..."
+      throw new Error(
+        `Failed to parse AI response. The AI returned malformed JSON. Error: ${parseError.message}`
       );
-
-      try {
-        // Try to extract JSON more carefully
-        // Sometimes AI adds explanation text before/after JSON
-        const betterMatch = generatedText.match(
-          /\{[\s\S]*"projectName"[\s\S]*\}/
-        );
-        if (betterMatch) {
-          jsonString = betterMatch[0];
-          projectData = JSON.parse(jsonString);
-          console.error("Successfully parsed with alternative extraction");
-        } else {
-          throw new Error("Could not find valid JSON structure");
-        }
-      } catch (retryError) {
-        // Return a basic structure as fallback
-        console.error(
-          "All parsing attempts failed. Original error:",
-          parseError.message
-        );
-        throw new Error(
-          `Failed to parse AI response. The AI response was malformed. Please try again or simplify your request.`
-        );
-      }
     }
 
-    // Return data that can be used by writeFilesToDisk function
+    if (!projectData.projectName || !projectData.files || !Array.isArray(projectData.files)) {
+      throw new Error("AI response missing required fields. Please try again.");
+    }
+
+    const fileStructure = {
+      type: "directory",
+      name: "root",
+      children: projectData.files.map((f) => ({
+        type: "file",
+        name: f.path,
+      })),
+    };
+
+    const setupInstructions = {
+      prerequisites: ["Node.js", params.language],
+      installCommands: projectData.setup?.install || [],
+      runCommands: projectData.setup?.run || [],
+      testCommands: projectData.setup?.test || [],
+      environmentVariables: [],
+    };
+
     return {
       success: true,
       projectName: projectData.projectName,
-      fileStructure: projectData.fileStructure,
-      files: projectData.files,
-      setupInstructions: projectData.setupInstructions,
-      additionalNotes: projectData.additionalNotes,
+      fileStructure,
+      files: projectData.files.map((f) => ({
+        path: f.path,
+        content: f.content,
+        description: "",
+      })),
+      setupInstructions,
+      additionalNotes: projectData.notes || "",
       summary: {
         totalFiles: projectData.files.length,
         language: params.language,
@@ -158,29 +127,23 @@ Format your response as JSON with the following structure:
   }
 }
 
-// Helper function to write generated files to user's local file system
-// This uses the File System Access API (works in Chrome, Edge, Opera)
 export async function writeFilesToDisk(projectData) {
   try {
-    // Check if File System Access API is supported
     if (!("showDirectoryPicker" in window)) {
       throw new Error(
         "File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera."
       );
     }
 
-    // Ask user to select a directory where project will be created
     const directoryHandle = await window.showDirectoryPicker({
       mode: "readwrite",
     });
 
-    // Create project root directory
     const projectDirHandle = await directoryHandle.getDirectoryHandle(
       projectData.projectName,
       { create: true }
     );
 
-    // Write all files
     for (const file of projectData.files) {
       await writeFile(projectDirHandle, file.path, file.content);
     }
@@ -201,12 +164,10 @@ export async function writeFilesToDisk(projectData) {
   }
 }
 
-// Helper function to write a single file, creating directories as needed
 async function writeFile(dirHandle, filePath, content) {
   const parts = filePath.split("/");
   const fileName = parts.pop();
 
-  // Create nested directories if needed
   let currentDir = dirHandle;
   for (const part of parts) {
     if (part) {
@@ -214,7 +175,6 @@ async function writeFile(dirHandle, filePath, content) {
     }
   }
 
-  // Write the file
   if (fileName) {
     const fileHandle = await currentDir.getFileHandle(fileName, {
       create: true,
@@ -224,3 +184,4 @@ async function writeFile(dirHandle, filePath, content) {
     await writable.close();
   }
 }
+
